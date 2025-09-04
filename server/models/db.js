@@ -1,5 +1,5 @@
-import { Sequelize } from 'sequelize'
-import dbConfig from '../config/db.config.js'
+const { Sequelize } = require('sequelize')
+const dbConfig = require('../config/db.config')
 
 const sequelize = new Sequelize(dbConfig.DB, dbConfig.USER, dbConfig.PASSWORD, {
     host: dbConfig.HOST,
@@ -18,4 +18,4 @@ const Connection = async () => {
 }
 
 Connection()
-export default sequelize;
+module.exports = sequelize

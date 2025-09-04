@@ -1,15 +1,12 @@
-import { DataTypes } from "sequelize";
-import sequelize from './db.js'
+const { DataTypes } = require("sequelize")
+const sequelize = require('./db.js')
 
 const Activity = sequelize.define("activity", {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
+    // id ไม่ต้องมีก็ได้มันจะสร้างให้เอง 
     name: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
+        trim: true
     },
     description: {
         type: DataTypes.STRING,
@@ -25,7 +22,8 @@ const Activity = sequelize.define("activity", {
     },
     team_size: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: false,
+        min: 1
     },
     date: {
         type: DataTypes.DATE,
@@ -56,9 +54,9 @@ const Activity = sequelize.define("activity", {
         allowNull: false
     },
     status: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
+        type: DataTypes.ENUM("draft", "open", "closed", "in_progress", "completed"),
+        defaultValue: "draft"
+    }
 })
 
 Activity.sync({ force: false}).then(() => {
@@ -67,4 +65,4 @@ Activity.sync({ force: false}).then(() => {
     console.log('error while creating table activity', error)
 })
 
-export default Activity
+module.exports = Activity

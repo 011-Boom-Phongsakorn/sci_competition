@@ -1,103 +1,98 @@
-const db = require('../models/index')
-const User = db.User
-const Role = db.Role
-const bcrypt = require('bcryptjs')
-const jwt = require('jsonwebtoken')
-const { Op } = require('sequelize')
+const jwt = require("jsonwebtoken");
+const authconfig = require("../config/auth.config");
+const db = require("../models/index");
+const User = db.User;
+// random token
+const crypto = require("crypto");
 
-const config = require('../config/auth.config')
+// Register
+const signUp = async (req, res) => {
+  try {
+    const { email, name, password, type, school, phone } = req.body;
 
-const authController = {};
-
-authController.signUp = async (req, res) => {
-    const {username, name, email, password} = req.body
-    if(!username || !name || !email || !password){
-        res.status(400).send({ message: "Please provide all required fields" })
-        return;
+    // Check validation request
+    if (!email || !name || !password || !type) {
+      return res
+        .status(400)
+        .send({ message: "email, password, type and name are required!" });
     }
 
-    // SELECT * FROM user WHERE username = username
-    await User.findOne({ where: { username } })
-    // .select(-password)
-    .then((user) => {
-        user && res.status(400).send({ message: "Username is already existed"})
-        return;
-    })
-
-    const newUser = {username, name, email, password: bcrypt.hashSync(password, 8)}
-    User.create(newUser).then((user) => {
-        // send roles in body [ADMIN]
-        if(req.body.roles){
-            // SELECT * FROM Role WHERE name = roles1 OR name = roles2
-            Role.findAll({
-                where: {
-                    name: {[Op.or]:req.body.roles}
-                }
-            }).then((roles) => {
-                if(roles?.length === 0) { // เช็คว่าที่ส่งมา ถ้าไม่มี หรือไม่มี role ที่อยู่ใน database จะเซ็ทให้ role ที่ 3 คือ teacher
-                    user.setRoles([3]).then(() => {
-                        res.send({ message: "User registered successfully3"})
-                    })
-                }else {
-                    user.setRoles(roles).then(() => {
-                        res.send({ message: "User registered successfully1"})
-                    })
-                }
-            })
-        }else {
-            user.setRoles([3]).then(() => {
-                res.send({ message: "User registered successfully2"})
-            })
-        }
-    }).catch((error) => {
-        res.status(500).send({ message: error.message || "Something error while registering a new user"})
-    })
-}
-
-authController.signIn = async (req, res) => {
-    const { username, password } = req.body
-    if(!username || !password) {
-        res.status(400).json({ message: "Username or Password are missing!" })
-        return;
+    // เราให้แค่ type 3 อันนี้ ให้ login เข้ามา
+    // validate user type
+    const allowedType = ["admin", "teacher", "judge"];
+    if (!allowedType.includes(type)) {
+      return res.status(400).send({
+        message: "Invalid user type. Must be admin, teacher or judge",
+      });
     }
-    
-    await User.findOne({ where: { username: username }})
-    .then((user) => {
-        if(!user){
-            res.status(404).json({ message: "User Not Found!"})
-            return;
-        }
 
-        const passwordIsValid = bcrypt.compareSync(password, user.password)
-        if(!passwordIsValid) {
-            res.status(401).json({ message: "Password invalid!"})
-            return;
-        }
+    // Addition validation for teacher
+    if (type === "teacher" && (!school || !phone)) {
+      return res
+        .status(400)
+        .send({ message: "school and phone are required for teacher!" });
+    }
 
-        // Valid User
-        const token = jwt.sign({ username: user.username }, config.secret, {
-            expiresIn: 86400, // 60sec * 60min * 24h = 86400
-        })
+    // check iif user already exists
+    // ถ้าใช้ .then() ไม่ต้องมี await
+    const existingUser = await User.findOne({ where: { email: email } });
 
-        const authorities = [];
-        user.getRoles().then((roles) => {
-            for(let i = 0; i < roles.length; i++) {
-                authorities.push(`ROLES_${roles[i].name.toUpperCase()}`)
-            }
-            res.send({
-                token: token,
-                authorities: authorities,
-                userInfor: {
-                    name: user.name,
-                    email: user.email,
-                    username: user.username
-                }
-            })
-        })
-    })
-    .catch((error) => {
-        res.status(500).send({ message: error.message || 'Something error while signin'})
-    })
-}
+    if (existingUser) {
+      return res.status(400).send({ message: "Email already in use!" });
+    }
 
-module.exports = authController
+    // Create user object on type
+    const userData = {
+      name: name,
+      email: email,
+      passowrd: password,
+      type: type,
+    };
+
+    if (type === "teacher") {
+      userData.school = school;
+      userData.phone = phone;
+    }
+
+    // Create new user
+    const user = await User.create(userData);
+
+    // if user is a teacher, create and send verification emal
+    if (type === "teacher") {
+      try {
+        // create verification token
+        const token = crypto.randomBytes(32).toString("hex");
+
+        // บันทึก database
+        const verification = await db.VerificationToken.create({
+          token,
+          userId: user.id,
+          expiredAt: new Date(Date.new() + 24 * 60 * 60 * 1000), // 24h
+        });
+
+        //
+
+      } catch (error) {}
+    }
+
+    // 201 success แบบ created
+    res.status(201).send({
+      message:
+        user.type === "teacher"
+          ? "registration successfully! please check your email to verify your account"
+          : "user registered successfully!",
+      //   object(user) ส่งให้ client แต่เราไม่ได้ส่ง password ไปให้ คราวที่แล้วให้ password(-) ที่ create user
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        type: user.type,
+        ...(user.type === "teacher" && { isVerified: user.isVerified }),
+      },
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: error.message || "Some error occurred while creating the user",
+    });
+  }
+};

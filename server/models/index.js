@@ -1,23 +1,26 @@
-const sequelize = require('./db')
-const Sequelize = require('sequelize')
+const sequelize = require("./db");
+const Sequelize = require("sequelize"); // class import มาจาก sequelize
 
-const User = require('./user.model')
-const Role = require('./role.model');
+const User = require("./user.model");
+const Role = require("./role.model");
+const Teacher = require("./teacher.model");
+const Judge = require("./judge.model");
+const Admin = require("./admin.model");
+const VerificationToken = require("./verificationToken.model");
 
-const db = {};
-db.sequelize = sequelize;
+const db = {}; // Object
+db.sequelize = sequelize; // เป็น instance จาก db
 db.Sequelize = Sequelize;
 
-db.User = User
-db.Role = Role
+db.User = User; // db.User เป็น attribute type เป็น User ก็คือเรา assign class User ไปที่ object db.User
+db.Role = Role;
+db.Admin = Admin;
+db.Teacher = Teacher;
+db.Judge = Judge;
+db.VerificationToken = VerificationToken;
 
 // association
-db.User.belongsToMany(db.Role, {
-    through: "user_roles"
-})
+db.VerificationToken.belongTo(db.User, { foreigKey: "userId" }); // one
+db.User.belongTo(db.VerificationToken, { foreigKey: "userId" });
 
-db.Role.belongsToMany(db.User, {
-    through: "user_roles"
-})
-
-module.exports = db
+module.exports = db;

@@ -1,98 +1,144 @@
-const jwt = require("jsonwebtoken");
-const authconfig = require("../config/auth.config");
 const db = require("../models/index");
 const User = db.User;
+const { sendVerificationEmail } = require("../utils/email");
+const path = require("path");
 // random token
 const crypto = require("crypto");
 
 // Register
 const signUp = async (req, res) => {
+  const { email, password, type, name } = req.body;
+
   try {
-    const { email, name, password, type, school, phone } = req.body;
-
-    // Check validation request
-    if (!email || !name || !password || !type) {
+    // validation request check
+    if (!email || !password || !type || !name) {
       return res
         .status(400)
-        .send({ message: "email, password, type and name are required!" });
+        .send({ message: "Please provide all required fields!" });
+    }
+    // check user type is valid
+    const allowedTypes = ["admin", "teacher", "judge"]; // กำหนดประเภทที่อนุญาต ถ้าทำเป็น enum ก็ได้ แต่ จะ error
+    if (!allowedTypes.includes(type)) {
+      return res.status(400).send({ message: "Invalid user type!" });
     }
 
-    // เราให้แค่ type 3 อันนี้ ให้ login เข้ามา
-    // validate user type
-    const allowedType = ["admin", "teacher", "judge"];
-    if (!allowedType.includes(type)) {
-      return res.status(400).send({
-        message: "Invalid user type. Must be admin, teacher or judge",
-      });
-    }
-
-    // Addition validation for teacher
+    // check additional fields for teacher type
+    const { school, phone } = req.body; // ดึงข้อมูล school และ phone จาก request body
     if (type === "teacher" && (!school || !phone)) {
+      // ถ้า type เป็น teacher ต้องมี school และ phone ด้วย
       return res
         .status(400)
-        .send({ message: "school and phone are required for teacher!" });
+        .send({ message: "Please provide school and phone for teacher type!" });
     }
 
-    // check iif user already exists
-    // ถ้าใช้ .then() ไม่ต้องมี await
-    const existingUser = await User.findOne({ where: { email: email } });
-
+    // check email already exists
+    const existingUser = await User.findOne({ where: { email: email } }); // หา user ที่มี email ตรงกับที่ส่งมา
+    // ไม่ใช้ then เพราะมี await
     if (existingUser) {
-      return res.status(400).send({ message: "Email already in use!" });
+      return res.status(400).send({ message: "Email is already in use!" });
     }
 
-    // Create user object on type
-    const userData = {
-      name: name,
-      email: email,
-      passowrd: password,
-      type: type,
-    };
-
+    //Create user object
+    const userData = { email, password, type, name, isVerified: false }; // สร้าง object userData จากข้อมูลที่ได้รับมา
     if (type === "teacher") {
       userData.school = school;
       userData.phone = phone;
     }
 
-    // Create new user
+    // create new user
     const user = await User.create(userData);
 
-    // if user is a teacher, create and send verification emal
+    //if user is a teacher , create and sent verification email
     if (type === "teacher") {
       try {
-        // create verification token
-        const token = crypto.randomBytes(32).toString("hex");
-
-        // บันทึก database
+        //create verification token
+        const token = crypto.randomBytes(32).toString("hex"); // สร้าง token แบบสุ่ม 32 bytes แล้วแปลงเป็น hex string ฐาน 16
         const verification = await db.VerificationToken.create({
           token,
           userId: user.id,
-          expiredAt: new Date(Date.new() + 24 * 60 * 60 * 1000), // 24h
+          expiredAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // หมดอายุใน 24 ชั่วโมง
         });
+        console.log("verification token created ", verification);
 
-        //
-
-      } catch (error) {}
+        //send verification email
+        //TODO Send verifycayion email
+        await sendVerificationEmail(user.email, token, user.name);
+        console.log("Verfication email sent successfully");
+      } catch (error) {
+        console.log("Error sending verifycation email", error);
+      }
     }
 
-    // 201 success แบบ created
     res.status(201).send({
       message:
         user.type === "teacher"
-          ? "registration successfully! please check your email to verify your account"
-          : "user registered successfully!",
-      //   object(user) ส่งให้ client แต่เราไม่ได้ส่ง password ไปให้ คราวที่แล้วให้ password(-) ที่ create user
+          ? "Registration successfully! Please check your email to verify your account"
+          : "User registered successfully",
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
         type: user.type,
-        ...(user.type === "teacher" && { isVerified: user.isVerified }),
+        ...(user.type === "teacher" && { isVerified: user.isVerified }), // เพิ่ม isVerified ถ้า type เป็น teacher
+
+        //ที่ต้องใช้ object นี้เพราะ เดี๋ยวใช้ user password จะหลุดออกไปด้วย
       },
-    });
+    }); // 201 successfully created
   } catch (error) {
     return res.status(500).send({
-      message: error.message || "Some error occurred while creating the user",
+      message: error.message || "Some error occurred while creating the user.",
     });
   }
 };
+
+const verifyEmail = async (req, res) => {
+  const { token } = req.params;
+
+  if (!token) {
+    return res.status(400).send({ message: "token is missing!" });
+  }
+
+  try {
+    const verificationToken = await db.VerificationToken.findOne({
+      where: { token: token }, // token แรก คือ field ที่อยู่ใน table token ที่สอง คือ ที่รับเข้ามา
+    });
+
+    if (!verificationToken) {
+      return res.status(404).send({ message: "Invalid verification token" });
+    }
+
+    // check if token is expired
+    if (new Date() > verificationToken.expiredAt) {
+      await verificationToken.destroy();
+      return res
+        .status(400)
+        .send({ message: "Verification token has expired" });
+    }
+
+    const user = await db.User.findByPk(verificationToken.userId);
+    if (!user) {
+      return res.status(400).send({ message: "user not found" });
+    }
+
+    await user.update({ isVerified: true });
+    // ลบ token เพราะ one time use ใช้ครั้งเดียว
+    await verificationToken.destroy();
+    //  return web view
+    // cwd is current working directory
+    // join is connect path auto
+    const htmlPath = path.join(
+      process.cwd(),
+      "views",
+      "verification-success.html"
+    );
+    console.log("htmlpathhhhhhhhhhhhh", htmlPath);
+    res.sendFile(htmlPath);
+  } catch (error) {
+    return res.status(500).send({
+      message: error.message || "some error occurred while verifying the user",
+    });
+  }
+};
+
+const authController = { signUp, verifyEmail };
+module.exports = authController;

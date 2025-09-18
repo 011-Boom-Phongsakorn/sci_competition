@@ -7,8 +7,9 @@ const PORT = process.env.PORT || 5000;
 // const restaurantRouter = require("./routers/restaurant.router");
 const cors = require("cors");
 const FRONTEND_URL = process.env.FRONTEND_URL;
+const NODE_ENV = process.env.NODE_ENV || "development";
 
-const activityRouter = require('./routers/activity.router')
+const activityRouter = require("./routers/activity.router");
 
 // ต้องอยู่ข้างบน .json
 app.use(
@@ -22,16 +23,22 @@ app.use(
 );
 
 const authRouter = require("./routers/auth.router");
-
 const db = require("./models/index");
-const role = db.Role;
 
-const initRole = () => {
-  role.create({ id: 1, name: "admin" });
-  role.create({ id: 2, name: "manager" });
-  role.create({ id: 3, name: "teacher" });
-  role.create({ id: 4, name: "judge" });
+const initDatabase = async () => {
+  try {
+    await db.sequelize.authenticate();
+    console.log("Database connection established successfully");
+    if (NODE_ENV === "development") {
+      await db.sequelize.sync({ alter: true });
+      console.log("database synced in development mode");
+    }
+  } catch (error) {
+    console.error("unable to connect to database", error);
+  }
 };
+
+initDatabase();
 
 // เวลาไปแก้ type หรือ แก้ไขโครงสร้าง มันจะทำของเก่าเราต้องเปิด sync ด้วย เพื่อให้มันจำค่าใหม่ (เมื่อแก้ schema ใหม่ ต้องซิง ใหม่ด้วย)
 // เปิดปิดใหม่เพื่อให้ โครงสร้างมันซิง กับ model
@@ -52,7 +59,7 @@ app.get("/", (req, res) => {
 // use routers
 // app.use("/api/v1/restaurant", restaurantRouter);
 app.use("/api/v1/auth", authRouter);
-app.use("/api/v1/activitys", activityRouter)
+app.use("/api/v1/activitys", activityRouter);
 
 app.listen(PORT, () => {
   console.log(`Listening to http://localhost:${PORT}`);

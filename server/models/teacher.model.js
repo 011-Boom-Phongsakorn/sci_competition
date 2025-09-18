@@ -26,7 +26,7 @@ const Teacher = User.init(
     },
   },
   {
-    hook: {
+    hooks: {
       // ป้องกัน human error ป้องกันส่ง value ไม่ตรง
       beforeCreate: (teacher) => {
         teacher.type = "teacher";

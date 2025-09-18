@@ -100,4 +100,4 @@ const getVerificationEmailTemplate = (verificationUrl, userName) => `
 </html>
 `;
 
-module.exports = getVerificationEmailTemplate;
+module.exports = { getVerificationEmailTemplate };

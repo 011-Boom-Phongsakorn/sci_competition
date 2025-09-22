@@ -1,10 +1,12 @@
+const jwt = require("jsonwebtoken");
+const authConfig = require("../config/auth.config");
 const db = require("../models/index");
 const User = db.User;
 const { sendVerificationEmail } = require("../utils/email");
 const path = require("path");
 // random token
 const crypto = require("crypto");
-
+console.log(authConfig);
 // Register
 const signUp = async (req, res) => {
   const { email, password, type, name } = req.body;
@@ -140,5 +142,59 @@ const verifyEmail = async (req, res) => {
   }
 };
 
-const authController = { signUp, verifyEmail };
+const signIn = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    if (!email || !password) {
+      return res
+        .status(400)
+        .send({ message: "email are password are required!" });
+    }
+
+    // User บอกชื่อ modal ไปเลยเช่น User modal
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(404).send({ message: "user not found!" });
+    }
+
+    const passwordIsvalid = await user.comparePassword(password);
+    if (!passwordIsvalid) {
+      // 401 ยืนยันตัวตนไม่ผ่าน
+      return res.status(401).send({ message: "invalid password" });
+    }
+
+    if (user.type === "teacher" && !user.isVerified) {
+      return res.status(403).send({ message: "Please verify your email!" });
+    }
+
+    // payload คือ ข้อมูลที่จะแนบไป (ใช้)
+    const token = jwt.sign({ id: user.id }, authConfig.secret, {
+      expiresIn: 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(200).send({
+      message: "Login Successfuly",
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        type: user.type,
+        // ... จะสลายโครงสร้าง จะเป็นโครงสร้างใหม่พวกนี้ก็จะถูกเพิ่ม
+        ...(user.type === "teacher" && {
+          isVerified: user.isVerified,
+          school: user.school,
+          phone: user.phone,
+        }),
+      },
+      accessToken: token,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: error.message || "some error courred while logging in user",
+    });
+  }
+};
+
+const authController = { signUp, verifyEmail, signIn };
 module.exports = authController;

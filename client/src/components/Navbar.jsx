@@ -9,11 +9,15 @@ const Navbar = () => {
   const menuItems = [
     {
       name: "Activity",
-      url: "/",
+      url: "/activities",
     },
     {
       name: "News",
-      url: "/add",
+      url: "/news",
+    },
+    {
+      name: "Add News Activiti",
+      url: "/add-activity",
     },
   ];
 

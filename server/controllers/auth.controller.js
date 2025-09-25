@@ -170,7 +170,7 @@ const signIn = async (req, res) => {
 
     // payload คือ ข้อมูลที่จะแนบไป (ใช้)
     const token = jwt.sign({ id: user.id }, authConfig.secret, {
-      expiresIn: 24 * 60 * 60 * 1000,
+      expiresIn: 24 * 60 * 60, // sec
     });
 
     return res.status(200).send({

@@ -1,6 +1,28 @@
-import React from "react";
+import { useEffect } from "react";
+import Swal from "sweetalert2";
+import ActivityService from "../services/activity.service";
 
-const ActivityCard = ({ activity, onUpdate, onDelete }) => {
+const ActivityCard = ({ activity }) => {
+  useEffect(() => {}, []);
+
+  const handleDelete = async (id) => {
+    console.log("Deleting id:", id);
+    try {
+      const response = await ActivityService.deleteActivity(id);
+      if (response.status === 200) {
+        Swal.fire({
+          title: "Deleted Activity",
+          text: "Activity deleted successfully!",
+          icon: "success",
+        }).then(() => {
+          window.location.reload();
+        });
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
   return (
     <div className="max-w-sm rounded overflow-hidden shadow-lg p-4 bg-white">
       <div className="px-4 py-2">
@@ -51,7 +73,7 @@ const ActivityCard = ({ activity, onUpdate, onDelete }) => {
           </button>
           <button
             className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-4 rounded"
-            onClick={() => onDelete(activity.id)}
+            onClick={() => handleDelete(activity.id)}
           >
             Delete
           </button>

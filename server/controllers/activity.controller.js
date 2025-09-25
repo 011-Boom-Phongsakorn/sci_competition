@@ -125,7 +125,7 @@ activityController.deleteById = async (req, res) => {
       return res.status(404).send({ message: "Activity not found!" });
     }
 
-    res.send({ message: "Activity deleted successfully!" });
+    res.send ({ message: "Activity deleted successfully!" });
   } catch (error) {
     console.log("error while deleting controller " + error);
     res.status(500).send({

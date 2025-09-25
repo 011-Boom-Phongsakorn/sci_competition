@@ -10,9 +10,14 @@ const getAllActivities = async () => {
   return await api.get(`${API_URL}/`);
 };
 
+const deleteActivity = async (id) => {
+  return await api.delete(`${API_URL}/${id}`);
+};
+
 const ActivityService = {
   createActivity,
   getAllActivities,
+  deleteActivity,
 };
 
 export default ActivityService;
